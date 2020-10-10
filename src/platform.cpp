@@ -46,6 +46,7 @@
 
 #include "platform.h"
 #include <stdlib.h>
+#include <sys/time.h>
 #if HAVE_BSD_STDLIB_H
 #  include <bsd/stdlib.h>
 #endif
@@ -111,7 +112,10 @@ unsigned long platform_gen_seed()
 #else
 unsigned long platform_gen_seed()
 {
-	return (long) read_time();
+	//return (long) read_time();
+	struct timeval tp;
+	gettimeofday(&tp, nullptr);
+	return tp.tv_sec * 1000000 + tp.tv_usec;
 }
 #endif
 
