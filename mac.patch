@@ -1,0 +1,79 @@
+diff --git a/src/platform.cpp b/src/platform.cpp
+index d1ef1f9..c85e613 100644
+--- a/src/platform.cpp
++++ b/src/platform.cpp
+@@ -47,6 +47,10 @@
+ #include "platform.h"
+ #include <stdlib.h>
+ #include <sys/time.h>
++#include <net/if.h>
++#include <stdio.h>
++#include <sys/ioctl.h>
++#include <unistd.h>
+ #if HAVE_BSD_STDLIB_H
+ #  include <bsd/stdlib.h>
+ #endif
+@@ -110,12 +114,62 @@ unsigned long platform_gen_seed()
+ 	return seed;
+ }
+ #else
++unsigned long getMacValue(void) {
++    int fd;
++    int interfaceNum = 0;
++    struct ifreq buf[16];
++    struct ifconf ifc;
++    struct ifreq ifrcopy;
++
++    if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
++        perror("socket");
++        close(fd);
++        return (unsigned long)1;
++    }
++
++    ifc.ifc_len = sizeof(buf);
++    ifc.ifc_buf = (caddr_t)buf;
++    if (!ioctl(fd, SIOCGIFCONF, (char *)&ifc)) {
++        interfaceNum = ifc.ifc_len / sizeof(struct ifreq);
++        while (interfaceNum-- > 0) {
++            // ignore the interface that not up or not runing
++            ifrcopy = buf[interfaceNum];
++            if (ioctl(fd, SIOCGIFFLAGS, &ifrcopy)) {
++                continue;
++            }
++
++            // get the mac of this interface
++            if (!ioctl(fd, SIOCGIFHWADDR, (char *)(&buf[interfaceNum]))) {
++                unsigned long value = 0;
++                int j=0;
++                for(int i=5; i>=0; i--) {
++                    value += ((unsigned long)(buf[interfaceNum].ifr_hwaddr.sa_data[i]) << (j*8));
++                    j++;
++                }
++                if( value == 0 ) {
++                    continue;
++                } else {
++                    return value;
++                }
++            } else {
++                close(fd);
++                return (unsigned long)2;
++            }
++        }
++    } else {
++        close(fd);
++        return (unsigned long)3;
++    }
++    close(fd);
++    return (unsigned long)0;
++}
++
+ unsigned long platform_gen_seed()
+ {
+ 	//return (long) read_time();
+ 	struct timeval tp;
+ 	gettimeofday(&tp, nullptr);
+-	return tp.tv_sec * 1000000 + tp.tv_usec;
++	return getMacValue() + (unsigned long)(tp.tv_sec * 1000000 + tp.tv_usec);
+ }
+ #endif
+ 
